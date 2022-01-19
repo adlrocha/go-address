@@ -41,6 +41,8 @@ var (
 	ErrInvalidLength = errors.New("invalid address length")
 	// ErrInvalidChecksum is returned when encountering an invalid address checksum.
 	ErrInvalidChecksum = errors.New("invalid address checksum")
+	// ErrNotHierarchical is returned when trying to access info only available in hierarchical addresses
+	ErrNotHierarchical = errors.New("not hierarchical address")
 )
 
 // UndefAddressString is the string used to represent an empty address when encoded to a string.

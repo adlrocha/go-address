@@ -63,6 +63,8 @@ var allTestAddresses = []string{
 	"t3s2q2hzhkpiknjgmf4zq3ejab2rh62qbndueslmsdzervrhapxr7dftie4kpnpdiv2n6tvkr743ndhrsw6d3a",
 	"t3q22fijmmlckhl56rn5nkyamkph3mcfu5ed6dheq53c244hfmnq2i7efdma3cj5voxenwiummf2ajlsbxc65a",
 	"t3u5zgwa4ael3vuocgc5mfgygo4yuqocrntuuhcklf4xzg5tcaqwbyfabxetwtj4tsam3pbhnwghyhijr5mixa",
+	// Hierarchical addresses
+	"f4pmxxe33poqxtuotgga4temrtgm3tembtgy4dknbxg42tqmbxpwsjnzvh",
 }
 
 func TestVectorsIDAddress(t *testing.T) {
@@ -483,7 +485,7 @@ func TestInvalidStringAddresses(t *testing.T) {
 		expetErr error
 	}{
 		{"Q2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", ErrUnknownNetwork},
-		{"t4gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", ErrUnknownProtocol},
+		{"t5gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", ErrUnknownProtocol},
 		{"t2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr24y", ErrInvalidChecksum},
 		{"t0banananananannnnnnnnn", ErrInvalidLength},
 		{"t0banananananannnnnnn", ErrInvalidPayload},
@@ -511,7 +513,7 @@ func TestInvalidByteAddresses(t *testing.T) {
 		expetErr error
 	}{
 		// Unknown Protocol
-		{[]byte{4, 4, 4}, ErrUnknownProtocol},
+		{[]byte{5, 5, 5}, ErrUnknownProtocol},
 
 		// ID protocol
 		{[]byte{0}, ErrInvalidLength},

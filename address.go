@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"strings"
 
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/minio/blake2b-simd"
@@ -69,6 +70,9 @@ const (
 	Actor
 	// BLS represents the address BLS protocol.
 	BLS
+	// Hierarchical represents a plain address with additional subnet
+	// context info
+	Hierarchical
 
 	Unknown = Protocol(255)
 )
@@ -177,6 +181,11 @@ func NewBLSAddress(pubkey []byte) (Address, error) {
 	return newAddress(BLS, pubkey)
 }
 
+// NewHAddress returns an address using the Hierarchical protocol.
+func NewHAddress(subnet SubnetID, addr Address) (Address, error) {
+	return newAddress(Hierarchical, []byte(fmt.Sprintf("%v::%v", subnet, addr)))
+}
+
 // NewFromString returns the address represented by the string `addr`.
 func NewFromString(addr string) (Address, error) {
 	return decode(addr)
@@ -230,6 +239,10 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 		if len(payload) != BlsPublicKeyBytes {
 			return Undef, ErrInvalidPayload
 		}
+	case Hierarchical:
+		if len(strings.Split(string(payload), "::")) != 2 {
+			return Undef, ErrInvalidPayload
+		}
 	default:
 		return Undef, ErrUnknownProtocol
 	}
@@ -258,7 +271,7 @@ func encode(network Network, addr Address) (string, error) {
 
 	var strAddr string
 	switch addr.Protocol() {
-	case SECP256K1, Actor, BLS:
+	case SECP256K1, Actor, BLS, Hierarchical:
 		cksm := Checksum(append([]byte{addr.Protocol()}, addr.Payload()...))
 		strAddr = ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(append(addr.Payload(), cksm[:]...))
 	case ID:
@@ -301,6 +314,8 @@ func decode(a string) (Address, error) {
 		protocol = Actor
 	case '3':
 		protocol = BLS
+	case '4':
+		protocol = Hierarchical
 	default:
 		return Undef, ErrUnknownProtocol
 	}
