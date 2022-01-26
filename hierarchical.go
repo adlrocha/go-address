@@ -9,7 +9,7 @@ import (
 const RootSubnet = SubnetID("/root")
 
 // Undef is the undef ID
-const UndefSubnetID = SubnetID("")
+const UndefSubnetID = SubnetID("/")
 
 // SubnetID represents the ID of a subnet
 type SubnetID string
@@ -41,6 +41,64 @@ func (id SubnetID) Actor() (Address, error) {
 	}
 	_, saddr := path.Split(string(id))
 	return NewFromString(saddr)
+}
+
+func (id SubnetID) CommonParent(other SubnetID) (SubnetID, int) {
+	s1 := strings.Split(id.String(), "/")
+	s2 := strings.Split(other.String(), "/")
+	if len(s1) < len(s2) {
+		s1, s2 = s2, s1
+	}
+	out := "/"
+	l := 0
+	for i, s := range s2 {
+		if s == s1[i] {
+			out = path.Join(out, s)
+			l = i
+		} else {
+			return SubnetID(out), l
+		}
+	}
+	return SubnetID(out), l
+}
+
+func (id SubnetID) Down(curr SubnetID) SubnetID {
+	s1 := strings.Split(id.String(), "/")
+	s2 := strings.Split(curr.String(), "/")
+	// curr needs to be contained in id
+	if len(s2) >= len(s1) {
+		return UndefSubnetID
+	}
+	_, l := id.CommonParent(curr)
+	out := "/"
+	for i := 0; i <= l+1 && i < len(s1); i++ {
+		if i < len(s2) && s1[i] != s2[i] {
+			// they are not in a common path
+			return UndefSubnetID
+		}
+		out = path.Join(out, s1[i])
+	}
+	return SubnetID(out)
+}
+
+func (id SubnetID) Up(curr SubnetID) SubnetID {
+	s1 := strings.Split(id.String(), "/")
+	s2 := strings.Split(curr.String(), "/")
+	// curr needs to be contained in id
+	if len(s2) > len(s1) {
+		return UndefSubnetID
+	}
+
+	_, l := id.CommonParent(curr)
+	out := "/"
+	for i := 0; i < l; i++ {
+		if i < len(s1) && s1[i] != s2[i] {
+			// they are not in a common path
+			return UndefSubnetID
+		}
+		out = path.Join(out, s1[i])
+	}
+	return SubnetID(out)
 }
 
 // String returns the id in string form

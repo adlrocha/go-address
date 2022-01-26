@@ -52,3 +52,27 @@ func TestHAddress(t *testing.T) {
 	require.Equal(t, a.PrettyPrint(), "/root::f01000")
 
 }
+
+func TestSubnetOps(t *testing.T) {
+	testParentAndBottomUp(t, "/root/a", "/root/a/b", "/root/a", 2, false)
+	testParentAndBottomUp(t, "/root/c/a", "/root/a/b", "/root", 1, true)
+	testParentAndBottomUp(t, "/root/c/a/d", "/root/c/a/e", "/root/c/a", 3, true)
+	testParentAndBottomUp(t, "/root/c/a", "/root/c/b", "/root/c", 2, true)
+
+	require.Equal(t, address.SubnetID("/root/a/b/c").Down("/root/a"), address.SubnetID("/root/a/b"))
+	require.Equal(t, address.SubnetID("/root/a/b/c").Down("/root/a/b"), address.SubnetID("/root/a/b/c"))
+	require.Equal(t, address.SubnetID("/root/a").Down("/root/a/b/c"), address.UndefSubnetID)
+	require.Equal(t, address.SubnetID("/root/b").Down("/root/a/b/c"), address.UndefSubnetID)
+	require.Equal(t, address.SubnetID("/root/b").Down("/root/b"), address.UndefSubnetID)
+
+	require.Equal(t, address.SubnetID("/root/a/b/c").Up("/root/a"), address.SubnetID("/root"))
+	require.Equal(t, address.SubnetID("/root").Up("/root/a"), address.UndefSubnetID)
+	require.Equal(t, address.SubnetID("/root/a/b/c").Up("/root/a/b/c/d"), address.UndefSubnetID)
+	require.Equal(t, address.SubnetID("/root/a/b/c").Up("/root/a/b"), address.SubnetID("/root/a"))
+}
+
+func testParentAndBottomUp(t *testing.T, from, to, parent string, exl int, bottomup bool) {
+	p, l := address.SubnetID(from).CommonParent(address.SubnetID(to))
+	require.Equal(t, p, address.SubnetID(parent))
+	require.Equal(t, exl, l)
+}
