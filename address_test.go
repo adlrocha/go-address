@@ -66,6 +66,7 @@ var allTestAddresses = []string{
 	// Hierarchical addresses
 	"f4pmxxe33poqxtuotgga4temrtgm3tembtgy4dknbxg42tqmbxpwsjnzvh",
 	"t4f5zg633uf52damjqgayduotugfzdm3zvmq2xgnl2nj5hc2drom2g42btmfrto2zvmu3wi2dhgvxxcyjxoy3di33z4qraixy",
+	"f4f5zg633uhi5gmmlgm53hu4topi3gyz3oojrwyyzugvwwq4tbgvshi53pnn2geytsn53wkm3sg43hcz5xtlwq",
 }
 
 func TestVectorsIDAddress(t *testing.T) {

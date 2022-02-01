@@ -418,7 +418,7 @@ func (a *Address) UnmarshalCBOR(r io.Reader) error {
 		return fmt.Errorf("cbor type for address unmarshal was not byte string")
 	}
 
-	if extra > 64 {
+	if extra > 128 {
 		return fmt.Errorf("too many bytes to unmarshal for an address")
 	}
 
