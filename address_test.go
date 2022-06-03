@@ -64,9 +64,14 @@ var allTestAddresses = []string{
 	"t3q22fijmmlckhl56rn5nkyamkph3mcfu5ed6dheq53c244hfmnq2i7efdma3cj5voxenwiummf2ajlsbxc65a",
 	"t3u5zgwa4ael3vuocgc5mfgygo4yuqocrntuuhcklf4xzg5tcaqwbyfabxetwtj4tsam3pbhnwghyhijr5mixa",
 	// Hierarchical addresses
-	"f4pmxxe33poqxtuotgga4temrtgm3tembtgy4dknbxg42tqmbxpwsjnzvh",
-	"t4f5zg633uf52damjqgayduotugfzdm3zvmq2xgnl2nj5hc2drom2g42btmfrto2zvmu3wi2dhgvxxcyjxoy3di33z4qraixy",
-	"f4f5zg633uhi5gmmlgm53hu4topi3gyz3oojrwyyzugvwwq4tbgvshi53pnn2geytsn53wkm3sg43hcz5xtlwq",
+	// "f4pmxxe33poqxtuotgga4temrtgm3tembtgy4dknbxg42tqmbxpwsjnzvh",
+	// "t4f5zg633uf52damjqgayduotugfzdm3zvmq2xgnl2nj5hc2drom2g42btmfrto2zvmu3wi2dhgvxxcyjxoy3di33z4qraixy",
+	// "f4f5zg633uhi5gmmlgm53hu4topi3gyz3oojrwyyzugvwwq4tbgvshi53pnn2geytsn53wkm3sg43hcz5xtlwq",
+	// FIXME: Since we fixed the size of the addresses to a specific container so they have
+	// a fixed length they look horrible (not like the ones above from previous versions). Consider
+	// making them more appealing (although we have a PrettyPrint for this ??). We can have a specific
+	// size according to the levels of the hierarchical address to avoid having to pad the container.
+	"f4buxxe33poq5duzrqgeydamaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 }
 
 func TestVectorsIDAddress(t *testing.T) {

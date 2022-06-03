@@ -17,22 +17,24 @@ func TestNaming(t *testing.T) {
 	net2 := address.NewSubnetID(net1, addr2)
 
 	t.Log("Test actors")
-	actor1, err := net1.Actor()
-	require.NoError(t, err)
+	actor1 := net1.GetActor()
 	require.Equal(t, actor1, addr1)
-	actor2, err := net2.Actor()
+	actor2 := net2.GetActor()
 	require.NoError(t, err)
 	require.Equal(t, actor2, addr2)
-	actorRoot, err := root.Actor()
+	actorRoot := root.GetActor()
 	require.NoError(t, err)
 	require.Equal(t, actorRoot, address.Undef)
 
 	t.Log("Test parents")
-	parent1 := net1.Parent()
+	parent1, err := net1.GetParent()
+	require.NoError(t, err)
 	require.Equal(t, root, parent1)
-	parent2 := net2.Parent()
+	parent2, err := net2.GetParent()
+	require.NoError(t, err)
 	require.Equal(t, parent2, net1)
-	parentRoot := root.Parent()
+	parentRoot, err := root.GetParent()
+	require.NoError(t, err)
 	require.Equal(t, parentRoot, address.UndefSubnetID)
 
 }
@@ -54,25 +56,40 @@ func TestHAddress(t *testing.T) {
 }
 
 func TestSubnetOps(t *testing.T) {
-	testParentAndBottomUp(t, "/root/a", "/root/a/b", "/root/a", 2, false)
-	testParentAndBottomUp(t, "/root/c/a", "/root/a/b", "/root", 1, true)
-	testParentAndBottomUp(t, "/root/c/a/d", "/root/c/a/e", "/root/c/a", 3, true)
-	testParentAndBottomUp(t, "/root/c/a", "/root/c/b", "/root/c", 2, true)
+	testParentAndBottomUp(t, "/root/f01", "/root/f01/f02", "/root/f01", 2, false)
+	testParentAndBottomUp(t, "/root/f03/f01", "/root/f01/f02", "/root", 1, true)
+	testParentAndBottomUp(t, "/root/f03/f01/f04", "/root/f03/f01/f05", "/root/f03/f01", 3, true)
+	testParentAndBottomUp(t, "/root/f03/f01", "/root/f03/f02", "/root/f03", 2, true)
 
-	require.Equal(t, address.SubnetID("/root/a/b/c").Down("/root/a"), address.SubnetID("/root/a/b"))
-	require.Equal(t, address.SubnetID("/root/a/b/c").Down("/root/a/b"), address.SubnetID("/root/a/b/c"))
-	require.Equal(t, address.SubnetID("/root/a").Down("/root/a/b/c"), address.UndefSubnetID)
-	require.Equal(t, address.SubnetID("/root/b").Down("/root/a/b/c"), address.UndefSubnetID)
-	require.Equal(t, address.SubnetID("/root/b").Down("/root/b"), address.UndefSubnetID)
+	testDownOrUp(t, "/root/f01/f02/f03", "/root/f01", "/root/f01/f02", true)
+	testDownOrUp(t, "/root/f01/f02/f03", "/root/f01/f02", "/root/f01/f02/f03", true)
+	testDownOrUp(t, "/root/f02", "/root/f01/f02/f03", address.UndefSubnetID.String(), true)
+	testDownOrUp(t, "/root/f02", "/root/f02", address.UndefSubnetID.String(), true)
 
-	require.Equal(t, address.SubnetID("/root/a/b/c").Up("/root/a"), address.SubnetID("/root"))
-	require.Equal(t, address.SubnetID("/root").Up("/root/a"), address.UndefSubnetID)
-	require.Equal(t, address.SubnetID("/root/a/b/c").Up("/root/a/b/c/d"), address.UndefSubnetID)
-	require.Equal(t, address.SubnetID("/root/a/b/c").Up("/root/a/b"), address.SubnetID("/root/a"))
+	testDownOrUp(t, "/root/f01/f02/f03", "/root/f01", "/root", false)
+	testDownOrUp(t, "/root", "/root/f01", address.UndefSubnetID.String(), false)
+	testDownOrUp(t, "/root/f01/f02/f03", "/root/f01/f02/f03/d", address.UndefSubnetID.String(), false)
+	testDownOrUp(t, "/root/f01/f02/f03", "/root/f01/f02", "/root/f01", false)
+}
+
+func testDownOrUp(t *testing.T, from, to, expected string, down bool) {
+	sn, _ := address.SubnetIDFromString(from)
+	arg, _ := address.SubnetIDFromString(to)
+	ex, _ := address.SubnetIDFromString(expected)
+	if down {
+		require.Equal(t, sn.Down(arg), ex)
+	} else {
+		require.Equal(t, sn.Up(arg), ex)
+	}
 }
 
 func testParentAndBottomUp(t *testing.T, from, to, parent string, exl int, bottomup bool) {
-	p, l := address.SubnetID(from).CommonParent(address.SubnetID(to))
-	require.Equal(t, p, address.SubnetID(parent))
+	sfrom, err := address.SubnetIDFromString(from)
+	require.NoError(t, err)
+	sto, err := address.SubnetIDFromString(to)
+	require.NoError(t, err)
+	p, l := sfrom.CommonParent(sto)
+	sparent, err := address.SubnetIDFromString(parent)
+	require.Equal(t, p, sparent)
 	require.Equal(t, exl, l)
 }

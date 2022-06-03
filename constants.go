@@ -62,6 +62,7 @@ const ChecksumHashLength = 4
 // support constant-length IDs for subnets, to allow us to set
 // this MaxLength accurately without worrying about overflows.
 const MaxAddressStringLength = 2 + 84 + (4*6 + 6)
+const HierarchicalLength = MaxAddressStringLength - 32
 
 // BlsPublicKeyBytes is the length of a BLS public key
 const BlsPublicKeyBytes = 48

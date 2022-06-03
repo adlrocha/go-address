@@ -183,7 +183,22 @@ func NewBLSAddress(pubkey []byte) (Address, error) {
 
 // NewHAddress returns an address using the Hierarchical protocol.
 func NewHAddress(subnet SubnetID, addr Address) (Address, error) {
-	return newAddress(Hierarchical, []byte(fmt.Sprintf("%v::%v", subnet, addr)))
+	// Fix LENGTH container for hierarchical addresses
+	// for RUST compatibility
+	cont := make([]byte, HierarchicalLength)
+	if subnet == RootSubnet {
+		pl := []byte(fmt.Sprintf("%v::%v", ROOT_STR, addr))
+		// prefix the size of the address. Hierarchical addresses
+		// have fix size containers, but not all of it may be
+		// part of the address.
+		size := varint.ToUvarint(uint64(len(pl)))
+		copy(cont, append(size, pl...))
+		return newAddress(Hierarchical, cont)
+	}
+	pl := []byte(fmt.Sprintf("%v::%v", subnet, addr))
+	size := varint.ToUvarint(uint64(len(pl)))
+	copy(cont, append(size, pl...))
+	return newAddress(Hierarchical, cont)
 }
 
 // NewFromString returns the address represented by the string `addr`.
@@ -271,9 +286,12 @@ func encode(network Network, addr Address) (string, error) {
 
 	var strAddr string
 	switch addr.Protocol() {
-	case SECP256K1, Actor, BLS, Hierarchical:
+	case SECP256K1, Actor, BLS /*, Hierarchical*/ :
 		cksm := Checksum(append([]byte{addr.Protocol()}, addr.Payload()...))
 		strAddr = ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(append(addr.Payload(), cksm[:]...))
+	case Hierarchical:
+		// FIXME: Disregarding checkpoint and truncating for HAddress
+		strAddr = (ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(addr.Payload()))[:MaxAddressStringLength]
 	case ID:
 		i, n, err := varint.FromUvarint(addr.Payload())
 		if err != nil {
@@ -338,8 +356,10 @@ func decode(a string) (Address, error) {
 		return Undef, err
 	}
 
-	if len(payloadcksm)-ChecksumHashLength < 0 {
-		return Undef, ErrInvalidChecksum
+	if protocol != Hierarchical {
+		if len(payloadcksm)-ChecksumHashLength < 0 {
+			return Undef, ErrInvalidChecksum
+		}
 	}
 
 	payload := payloadcksm[:len(payloadcksm)-ChecksumHashLength]
@@ -351,8 +371,10 @@ func decode(a string) (Address, error) {
 		}
 	}
 
-	if !ValidateChecksum(append([]byte{protocol}, payload...), cksm) {
-		return Undef, ErrInvalidChecksum
+	if protocol != Hierarchical {
+		if !ValidateChecksum(append([]byte{protocol}, payload...), cksm) {
+			return Undef, ErrInvalidChecksum
+		}
 	}
 
 	return newAddress(protocol, payload)

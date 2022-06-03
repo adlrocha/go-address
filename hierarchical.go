@@ -3,16 +3,32 @@ package address
 import (
 	"path"
 	"strings"
+
+	"github.com/multiformats/go-varint"
 )
 
-// Root is the ID of the root network
-const RootSubnet = SubnetID("/root")
+var id0, _ = NewIDAddress(0)
 
-// Undef is the undef ID
-const UndefSubnetID = SubnetID("/")
+const ROOT_STR = "/root"
+const UNDEF_STR = "/"
+
+// RootSubnet is the ID of the root network
+var RootSubnet = SubnetID{
+	Parent: ROOT_STR,
+	Actor:  id0,
+}
+
+// UndefSubnetID is the undef ID
+var UndefSubnetID = SubnetID{
+	Parent: UNDEF_STR,
+	Actor:  id0,
+}
 
 // SubnetID represents the ID of a subnet
-type SubnetID string
+type SubnetID struct {
+	Parent string
+	Actor  Address
+}
 
 // NewSubnetID generates the ID for a subnet from the networkName
 // of its parent.
@@ -20,27 +36,48 @@ type SubnetID string
 // It takes the parent name and adds the source address of the subnet
 // actor that represents the subnet.
 func NewSubnetID(parentName SubnetID, SubnetActorAddr Address) SubnetID {
-	return SubnetID(path.Join(parentName.String(), SubnetActorAddr.String()))
-}
-
-// Parent returns the ID of the parent network.
-func (id SubnetID) Parent() SubnetID {
-	if id == RootSubnet {
-		return UndefSubnetID
+	return SubnetID{
+		Parent: parentName.String(),
+		Actor:  SubnetActorAddr,
 	}
-	return SubnetID(path.Dir(string(id)))
 }
 
-// Actor returns the subnet actor for a subnet
+func SubnetIDFromString(str string) (SubnetID, error) {
+	switch str {
+	case ROOT_STR:
+		return RootSubnet, nil
+	case UNDEF_STR:
+		return UndefSubnetID, nil
+	}
+
+	s1 := strings.Split(str, "/")
+	actor, err := NewFromString(s1[len(s1)-1])
+	if err != nil {
+		return UndefSubnetID, err
+	}
+	return SubnetID{
+		Parent: strings.Join(s1[:len(s1)-1], "/"),
+		Actor:  actor,
+	}, nil
+}
+
+// GetParent returns the ID of the parent network.
+func (id SubnetID) GetParent() (SubnetID, error) {
+	if id.Parent == ROOT_STR {
+		return UndefSubnetID, nil
+	}
+	return SubnetIDFromString(id.Parent)
+}
+
+// GetActor returns the subnet actor for a subnet
 //
 // Returns the address of the actor that handles the logic for a subnet
 // in its parent Subnet.
-func (id SubnetID) Actor() (Address, error) {
+func (id SubnetID) GetActor() Address {
 	if id == RootSubnet {
-		return Undef, nil
+		return Undef
 	}
-	_, saddr := path.Split(string(id))
-	return NewFromString(saddr)
+	return id.Actor
 }
 
 func (id SubnetID) CommonParent(other SubnetID) (SubnetID, int) {
@@ -56,10 +93,18 @@ func (id SubnetID) CommonParent(other SubnetID) (SubnetID, int) {
 			out = path.Join(out, s)
 			l = i
 		} else {
-			return SubnetID(out), l
+			sn, err := SubnetIDFromString(out)
+			if err != nil {
+				return UndefSubnetID, 0
+			}
+			return sn, l
 		}
 	}
-	return SubnetID(out), l
+	sn, err := SubnetIDFromString(out)
+	if err != nil {
+		return UndefSubnetID, 0
+	}
+	return sn, l
 }
 
 func (id SubnetID) Down(curr SubnetID) SubnetID {
@@ -78,7 +123,11 @@ func (id SubnetID) Down(curr SubnetID) SubnetID {
 		}
 		out = path.Join(out, s1[i])
 	}
-	return SubnetID(out)
+	sn, err := SubnetIDFromString(out)
+	if err != nil {
+		return UndefSubnetID
+	}
+	return sn
 }
 
 func (id SubnetID) Up(curr SubnetID) SubnetID {
@@ -98,12 +147,27 @@ func (id SubnetID) Up(curr SubnetID) SubnetID {
 		}
 		out = path.Join(out, s1[i])
 	}
-	return SubnetID(out)
+	sn, err := SubnetIDFromString(out)
+	if err != nil {
+		return UndefSubnetID
+	}
+	return sn
 }
 
 // String returns the id in string form
 func (id SubnetID) String() string {
-	return string(id)
+	return strings.Join([]string{id.Parent, id.Actor.String()}, "/")
+}
+
+// returns useful payload from hierarchical address
+func (a Address) hierarchical_payload() (string, error) {
+	size, _, err := varint.FromUvarint(a.Bytes()[1:2])
+	if err != nil {
+		return "", err
+	}
+	// hierarchical addresses have a fixed size. We prefix a single byte
+	// varint to know the total size of the address
+	return a.str[2 : size+2], nil
 }
 
 // Subnet returns subnet information for an address if any.
@@ -111,7 +175,11 @@ func (a Address) Subnet() (SubnetID, error) {
 	if a.str[0] != Hierarchical {
 		return UndefSubnetID, ErrNotHierarchical
 	}
-	return SubnetID(strings.Split(string(a.str[1:]), "::")[0]), nil
+	pl, err := a.hierarchical_payload()
+	if err != nil {
+		return UndefSubnetID, err
+	}
+	return SubnetIDFromString(strings.Split(pl, "::")[0])
 }
 
 // RawAddr return the address without subnet context information
@@ -119,12 +187,20 @@ func (a Address) RawAddr() (Address, error) {
 	if a.str[0] != Hierarchical {
 		return a, nil
 	}
-	return NewFromString(strings.Split(string(a.str[1:]), "::")[1])
+	pl, err := a.hierarchical_payload()
+	if err != nil {
+		return Undef, err
+	}
+	return NewFromString(strings.Split(pl, "::")[1])
 }
 
 func (a Address) PrettyPrint() string {
 	if a.str[0] != Hierarchical {
 		return a.String()
 	}
-	return string(string(a.str[1:]))
+	pl, err := a.hierarchical_payload()
+	if err != nil {
+		return UNDEF_STR
+	}
+	return string(pl)
 }
