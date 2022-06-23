@@ -70,8 +70,7 @@ const (
 	Actor
 	// BLS represents the address BLS protocol.
 	BLS
-	// Hierarchical represents a plain address with additional subnet
-	// context info
+	// Hierarchical represents a plain address with additional subnet context info.
 	Hierarchical
 
 	Unknown = Protocol(255)
@@ -181,9 +180,9 @@ func NewBLSAddress(pubkey []byte) (Address, error) {
 	return newAddress(BLS, pubkey)
 }
 
-// NewHAddress returns an address using the Hierarchical protocol.
-func NewHAddress(subnet SubnetID, addr Address) (Address, error) {
-	return newAddress(Hierarchical, []byte(fmt.Sprintf("%v::%v", subnet, addr)))
+// NewHCAddress returns an address using within the Hierarchical Consensus protocol.
+func NewHCAddress(subnet SubnetID, addr Address) (Address, error) {
+	return newAddress(Hierarchical, []byte(fmt.Sprintf("%v%v%v", subnet, HCAddressSeparator, addr)))
 }
 
 // NewFromString returns the address represented by the string `addr`.
@@ -225,7 +224,7 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 			return Undef, xerrors.Errorf("could not decode: %v: %w", err, ErrInvalidPayload)
 		}
 		if n != len(payload) {
-			return Undef, xerrors.Errorf("different varint length (v:%d != p:%d): %w",
+			return Undef, xerrors.Errorf("different variant length (v:%d != p:%d): %w",
 				n, len(payload), ErrInvalidPayload)
 		}
 		if v > math.MaxInt64 {
@@ -240,7 +239,7 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 			return Undef, ErrInvalidPayload
 		}
 	case Hierarchical:
-		if len(strings.Split(string(payload), "::")) != 2 {
+		if len(strings.Split(string(payload), HCAddressSeparator)) != 2 {
 			return Undef, ErrInvalidPayload
 		}
 	default:
@@ -338,7 +337,7 @@ func decode(a string) (Address, error) {
 		return Undef, err
 	}
 
-	if len(payloadcksm)-ChecksumHashLength < 0 {
+	if len(payloadcksm) < ChecksumHashLength {
 		return Undef, ErrInvalidChecksum
 	}
 

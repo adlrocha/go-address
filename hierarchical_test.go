@@ -1,10 +1,12 @@
 package address_test
 
 import (
+	"fmt"
 	"testing"
 
-	"github.com/filecoin-project/go-address"
 	"github.com/stretchr/testify/require"
+
+	"github.com/filecoin-project/go-address"
 )
 
 func TestNaming(t *testing.T) {
@@ -19,38 +21,48 @@ func TestNaming(t *testing.T) {
 	t.Log("Test actors")
 	actor1, err := net1.Actor()
 	require.NoError(t, err)
-	require.Equal(t, actor1, addr1)
+	require.Equal(t, addr1, actor1)
 	actor2, err := net2.Actor()
 	require.NoError(t, err)
-	require.Equal(t, actor2, addr2)
+	require.Equal(t, addr2, actor2)
 	actorRoot, err := root.Actor()
 	require.NoError(t, err)
-	require.Equal(t, actorRoot, address.Undef)
+	require.Equal(t, address.Undef, actorRoot)
 
 	t.Log("Test parents")
 	parent1 := net1.Parent()
-	require.Equal(t, root, parent1)
+	require.Equal(t, parent1, root)
 	parent2 := net2.Parent()
-	require.Equal(t, parent2, net1)
+	require.Equal(t, net1, parent2)
 	parentRoot := root.Parent()
-	require.Equal(t, parentRoot, address.UndefSubnetID)
+	require.Equal(t, address.UndefSubnetID, parentRoot)
 
 }
 
 func TestHAddress(t *testing.T) {
+	_, err := address.NewFromBytes([]byte{address.Hierarchical})
+	require.Error(t, err)
+
+	_, err = address.NewFromString(string(address.Hierarchical))
+	require.Error(t, err)
+
 	id, err := address.NewIDAddress(1000)
-	a, err := address.NewHAddress(address.RootSubnet, id)
 	require.NoError(t, err)
+
+	a, err := address.NewHCAddress(address.RootSubnet, id)
+	require.NoError(t, err)
+
 	sn, err := a.Subnet()
 	require.NoError(t, err)
-	require.Equal(t, sn, address.RootSubnet)
+	require.Equal(t, address.RootSubnet, sn)
+
 	raw, err := a.RawAddr()
 	require.NoError(t, err)
 	require.Equal(t, id, raw)
+
 	_, err = id.Subnet()
 	require.Error(t, err, address.ErrNotHierarchical)
-	require.Equal(t, a.PrettyPrint(), "/root::f01000")
-
+	require.Equal(t, fmt.Sprintf("%v%v%v", address.RootSubnet, address.HCAddressSeparator, id), a.PrettyPrint())
 }
 
 func TestSubnetOps(t *testing.T) {
