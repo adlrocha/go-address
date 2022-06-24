@@ -224,7 +224,7 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 			return Undef, xerrors.Errorf("could not decode: %v: %w", err, ErrInvalidPayload)
 		}
 		if n != len(payload) {
-			return Undef, xerrors.Errorf("different variant length (v:%d != p:%d): %w",
+			return Undef, xerrors.Errorf("different varint length (v:%d != p:%d): %w",
 				n, len(payload), ErrInvalidPayload)
 		}
 		if v > math.MaxInt64 {
