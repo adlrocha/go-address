@@ -1,16 +1,23 @@
 package address
 
 import (
+	"fmt"
 	"path"
 	"strings"
-
-	"github.com/multiformats/go-varint"
 )
 
 var id0, _ = NewIDAddress(0)
 
-const ROOT_STR = "/root"
-const UNDEF_STR = "/"
+const (
+	ROOT_STR          = "/root"
+	SUBNET_SEPARATOR  = "/"
+	UNDEF_STR         = SUBNET_SEPARATOR
+	HC_ADDR_SEPARATOR = ":"
+	HC_ADDR_END       = byte(',')
+	HA_ROOT_LEN       = 5
+	HA_LEVEL_LEN      = 23
+	RAW_ADDR_LEN      = 66
+)
 
 // RootSubnet is the ID of the root network
 var RootSubnet = SubnetID{
@@ -50,13 +57,13 @@ func SubnetIDFromString(str string) (SubnetID, error) {
 		return UndefSubnetID, nil
 	}
 
-	s1 := strings.Split(str, "/")
+	s1 := strings.Split(str, SUBNET_SEPARATOR)
 	actor, err := NewFromString(s1[len(s1)-1])
 	if err != nil {
 		return UndefSubnetID, err
 	}
 	return SubnetID{
-		Parent: strings.Join(s1[:len(s1)-1], "/"),
+		Parent: strings.Join(s1[:len(s1)-1], SUBNET_SEPARATOR),
 		Actor:  actor,
 	}, nil
 }
@@ -81,12 +88,12 @@ func (id SubnetID) GetActor() Address {
 }
 
 func (id SubnetID) CommonParent(other SubnetID) (SubnetID, int) {
-	s1 := strings.Split(id.String(), "/")
-	s2 := strings.Split(other.String(), "/")
+	s1 := strings.Split(id.String(), SUBNET_SEPARATOR)
+	s2 := strings.Split(other.String(), SUBNET_SEPARATOR)
 	if len(s1) < len(s2) {
 		s1, s2 = s2, s1
 	}
-	out := "/"
+	out := SUBNET_SEPARATOR
 	l := 0
 	for i, s := range s2 {
 		if s == s1[i] {
@@ -108,14 +115,14 @@ func (id SubnetID) CommonParent(other SubnetID) (SubnetID, int) {
 }
 
 func (id SubnetID) Down(curr SubnetID) SubnetID {
-	s1 := strings.Split(id.String(), "/")
-	s2 := strings.Split(curr.String(), "/")
+	s1 := strings.Split(id.String(), SUBNET_SEPARATOR)
+	s2 := strings.Split(curr.String(), SUBNET_SEPARATOR)
 	// curr needs to be contained in id
 	if len(s2) >= len(s1) {
 		return UndefSubnetID
 	}
 	_, l := id.CommonParent(curr)
-	out := "/"
+	out := SUBNET_SEPARATOR
 	for i := 0; i <= l+1 && i < len(s1); i++ {
 		if i < len(s2) && s1[i] != s2[i] {
 			// they are not in a common path
@@ -131,15 +138,15 @@ func (id SubnetID) Down(curr SubnetID) SubnetID {
 }
 
 func (id SubnetID) Up(curr SubnetID) SubnetID {
-	s1 := strings.Split(id.String(), "/")
-	s2 := strings.Split(curr.String(), "/")
+	s1 := strings.Split(id.String(), SUBNET_SEPARATOR)
+	s2 := strings.Split(curr.String(), SUBNET_SEPARATOR)
 	// curr needs to be contained in id
 	if len(s2) > len(s1) {
 		return UndefSubnetID
 	}
 
 	_, l := id.CommonParent(curr)
-	out := "/"
+	out := SUBNET_SEPARATOR
 	for i := 0; i < l; i++ {
 		if i < len(s1) && s1[i] != s2[i] {
 			// they are not in a common path
@@ -156,18 +163,24 @@ func (id SubnetID) Up(curr SubnetID) SubnetID {
 
 // String returns the id in string form
 func (id SubnetID) String() string {
-	return strings.Join([]string{id.Parent, id.Actor.String()}, "/")
+	return strings.Join([]string{id.Parent, id.Actor.String()}, SUBNET_SEPARATOR)
+}
+
+// Levels returns the number of levels in the current subnetID
+func (id SubnetID) Levels() int {
+	return len(strings.Split(id.String(), SUBNET_SEPARATOR)) - 1
+
 }
 
 // returns useful payload from hierarchical address
-func (a Address) hierarchical_payload() (string, error) {
-	size, _, err := varint.FromUvarint(a.Bytes()[1:2])
-	if err != nil {
-		return "", err
+func (a Address) parse_hierarchical() ([]string, error) {
+	str := string(a.Payload())
+	str = strings.Split(str, string(HC_ADDR_END))[0]
+	out := strings.Split(str, HC_ADDR_SEPARATOR)
+	if len(out) != 2 {
+		return nil, fmt.Errorf("error parsing hierarchical address")
 	}
-	// hierarchical addresses have a fixed size. We prefix a single byte
-	// varint to know the total size of the address
-	return a.str[2 : size+2], nil
+	return out, nil
 }
 
 // Subnet returns subnet information for an address if any.
@@ -175,11 +188,11 @@ func (a Address) Subnet() (SubnetID, error) {
 	if a.str[0] != Hierarchical {
 		return UndefSubnetID, ErrNotHierarchical
 	}
-	pl, err := a.hierarchical_payload()
+	pl, err := a.parse_hierarchical()
 	if err != nil {
 		return UndefSubnetID, err
 	}
-	return SubnetIDFromString(strings.Split(pl, "::")[0])
+	return SubnetIDFromString(pl[0])
 }
 
 // RawAddr return the address without subnet context information
@@ -187,20 +200,24 @@ func (a Address) RawAddr() (Address, error) {
 	if a.str[0] != Hierarchical {
 		return a, nil
 	}
-	pl, err := a.hierarchical_payload()
+	pl, err := a.parse_hierarchical()
 	if err != nil {
 		return Undef, err
 	}
-	return NewFromString(strings.Split(pl, "::")[1])
+	return decode_raw_str(pl[1])
 }
 
 func (a Address) PrettyPrint() string {
 	if a.str[0] != Hierarchical {
 		return a.String()
 	}
-	pl, err := a.hierarchical_payload()
+	pl, err := a.parse_hierarchical()
 	if err != nil {
 		return UNDEF_STR
 	}
-	return string(pl)
+	raw, err := decode_raw_str(pl[1])
+	if err != nil {
+		return UNDEF_STR
+	}
+	return string(pl[0] + HC_ADDR_SEPARATOR + raw.String())
 }

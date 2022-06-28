@@ -51,8 +51,13 @@ func TestHAddress(t *testing.T) {
 	require.Equal(t, id, raw)
 	_, err = id.Subnet()
 	require.Error(t, err, address.ErrNotHierarchical)
-	require.Equal(t, a.PrettyPrint(), "/root::f01000")
+	require.Equal(t, a.PrettyPrint(), "/root:f01000")
 
+}
+
+func TestRustInterop(t *testing.T) {
+	_, err := address.NewFromString("f4aixxe33poqxwmmbrgaydcotggn3hm3logyzgy33gozuguzbsovtxuy3bgzzw6zrsnizhkytxn5vtmy3kgr4hqytgpj5di6lvpbtgwz3pmjygs2dimqzhi2dmmfxg243ign3te4dunrsdez3rnnxdelaaac3fjs3r")
+	require.NoError(t, err)
 }
 
 func TestSubnetOps(t *testing.T) {

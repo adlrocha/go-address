@@ -186,18 +186,20 @@ func NewHAddress(subnet SubnetID, addr Address) (Address, error) {
 	// Fix LENGTH container for hierarchical addresses
 	// for RUST compatibility
 	cont := make([]byte, HierarchicalLength)
-	if subnet == RootSubnet {
-		pl := []byte(fmt.Sprintf("%v::%v", ROOT_STR, addr))
-		// prefix the size of the address. Hierarchical addresses
-		// have fix size containers, but not all of it may be
-		// part of the address.
-		size := varint.ToUvarint(uint64(len(pl)))
-		copy(cont, append(size, pl...))
-		return newAddress(Hierarchical, cont)
+	var pl []byte
+	raw, err := encode_raw_str(CurrentNetwork, addr)
+	if err != nil {
+		return Undef, err
 	}
-	pl := []byte(fmt.Sprintf("%v::%v", subnet, addr))
-	size := varint.ToUvarint(uint64(len(pl)))
-	copy(cont, append(size, pl...))
+	if subnet == RootSubnet {
+		pl = []byte(fmt.Sprintf("%v%v%v", ROOT_STR, HC_ADDR_SEPARATOR, raw))
+	} else {
+		pl = []byte(fmt.Sprintf("%v%v%v", subnet, HC_ADDR_SEPARATOR, raw))
+	}
+	// prefix the levels of the subnet.
+	levels := varint.ToUvarint(uint64(subnet.Levels()))
+	// add the end separator
+	copy(cont, append(levels, append(pl, HC_ADDR_END)...))
 	return newAddress(Hierarchical, cont)
 }
 
@@ -255,9 +257,20 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 			return Undef, ErrInvalidPayload
 		}
 	case Hierarchical:
-		if len(strings.Split(string(payload), "::")) != 2 {
+		// if no end character
+		if len(strings.Split(string(payload), string(HC_ADDR_END))) != 2 {
 			return Undef, ErrInvalidPayload
 		}
+		// if no address separator
+		if len(strings.Split(string(payload), HC_ADDR_SEPARATOR)) != 2 {
+			return Undef, ErrInvalidPayload
+		}
+		levels, _, err := varint.FromUvarint(payload[0:1])
+		if err != nil {
+			return Undef, err
+		}
+		// truncate payload address to the right size
+		payload = payload[:HA_ROOT_LEN+(levels-1)*HA_LEVEL_LEN+RAW_ADDR_LEN+2]
 	default:
 		return Undef, ErrUnknownProtocol
 	}
@@ -286,12 +299,9 @@ func encode(network Network, addr Address) (string, error) {
 
 	var strAddr string
 	switch addr.Protocol() {
-	case SECP256K1, Actor, BLS /*, Hierarchical*/ :
+	case SECP256K1, Actor, BLS, Hierarchical:
 		cksm := Checksum(append([]byte{addr.Protocol()}, addr.Payload()...))
 		strAddr = ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(append(addr.Payload(), cksm[:]...))
-	case Hierarchical:
-		// FIXME: Disregarding checkpoint and truncating for HAddress
-		strAddr = (ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(addr.Payload()))[:MaxAddressStringLength]
 	case ID:
 		i, n, err := varint.FromUvarint(addr.Payload())
 		if err != nil {
@@ -305,6 +315,99 @@ func encode(network Network, addr Address) (string, error) {
 		return UndefAddressString, ErrUnknownProtocol
 	}
 	return strAddr, nil
+}
+
+// encode without checksum
+func encode_raw_str(network Network, addr Address) (string, error) {
+	if addr == Undef {
+		return UndefAddressString, nil
+	}
+	var ntwk string
+	switch network {
+	case Mainnet:
+		ntwk = MainnetPrefix
+	case Testnet:
+		ntwk = TestnetPrefix
+	default:
+		return UndefAddressString, ErrUnknownNetwork
+	}
+
+	var strAddr string
+	switch addr.Protocol() {
+	case SECP256K1, Actor, BLS, Hierarchical:
+		strAddr = ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(addr.Payload())
+	case ID:
+		i, n, err := varint.FromUvarint(addr.Payload())
+		if err != nil {
+			return UndefAddressString, xerrors.Errorf("could not decode varint: %w", err)
+		}
+		if n != len(addr.Payload()) {
+			return UndefAddressString, xerrors.Errorf("payload contains additional bytes")
+		}
+		strAddr = fmt.Sprintf("%s%d%d", ntwk, addr.Protocol(), i)
+	default:
+		return UndefAddressString, ErrUnknownProtocol
+	}
+	return strAddr, nil
+}
+
+// decode without considering checksum
+func decode_raw_str(a string) (Address, error) {
+	if len(a) == 0 {
+		return Undef, nil
+	}
+	if a == UndefAddressString {
+		return Undef, nil
+	}
+	if len(a) > MaxAddressStringLength || len(a) < 3 {
+		return Undef, ErrInvalidLength
+	}
+
+	if string(a[0]) != MainnetPrefix && string(a[0]) != TestnetPrefix {
+		return Undef, ErrUnknownNetwork
+	}
+
+	var protocol Protocol
+	switch a[1] {
+	case '0':
+		protocol = ID
+	case '1':
+		protocol = SECP256K1
+	case '2':
+		protocol = Actor
+	case '3':
+		protocol = BLS
+	case '4':
+		protocol = Hierarchical
+	default:
+		return Undef, ErrUnknownProtocol
+	}
+
+	raw := a[2:]
+	if protocol == ID {
+		// 19 is length of math.MaxInt64 as a string
+		if len(raw) > 19 {
+			return Undef, ErrInvalidLength
+		}
+		id, err := strconv.ParseUint(raw, 10, 63)
+		if err != nil {
+			return Undef, ErrInvalidPayload
+		}
+		return newAddress(protocol, varint.ToUvarint(id))
+	}
+
+	payload, err := AddressEncoding.WithPadding(-1).DecodeString(raw)
+	if err != nil {
+		return Undef, err
+	}
+
+	if protocol == SECP256K1 || protocol == Actor {
+		if len(payload) != 20 {
+			return Undef, ErrInvalidPayload
+		}
+	}
+
+	return newAddress(protocol, payload)
 }
 
 func decode(a string) (Address, error) {
@@ -356,12 +459,6 @@ func decode(a string) (Address, error) {
 		return Undef, err
 	}
 
-	if protocol != Hierarchical {
-		if len(payloadcksm)-ChecksumHashLength < 0 {
-			return Undef, ErrInvalidChecksum
-		}
-	}
-
 	payload := payloadcksm[:len(payloadcksm)-ChecksumHashLength]
 	cksm := payloadcksm[len(payloadcksm)-ChecksumHashLength:]
 
@@ -371,10 +468,8 @@ func decode(a string) (Address, error) {
 		}
 	}
 
-	if protocol != Hierarchical {
-		if !ValidateChecksum(append([]byte{protocol}, payload...), cksm) {
-			return Undef, ErrInvalidChecksum
-		}
+	if !ValidateChecksum(append([]byte{protocol}, payload...), cksm) {
+		return Undef, ErrInvalidChecksum
 	}
 
 	return newAddress(protocol, payload)

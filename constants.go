@@ -55,14 +55,9 @@ const PayloadHashLength = 20
 const ChecksumHashLength = 4
 
 // MaxAddressStringLength is the max length of an address encoded as a string
-// it includes the network prefix, protocol, and bls publickey
-// NOTE: To accommodate consensus hierarchies of up to 6 levels in
-// hierarchical addresses we add an additional length buffer.
-// For the MVP we'll leave it like this, but in the future we may want to
-// support constant-length IDs for subnets, to allow us to set
-// this MaxLength accurately without worrying about overflows.
-const MaxAddressStringLength = 2 + 84 + (4*6 + 6)
-const HierarchicalLength = MaxAddressStringLength - 32
+// it includes the network prefix, protocol, and bls publickey (see spec)
+const MaxAddressStringLength = HierarchicalLength + ChecksumHashLength
+const HierarchicalLength = 140
 
 // BlsPublicKeyBytes is the length of a BLS public key
 const BlsPublicKeyBytes = 48
