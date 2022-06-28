@@ -69,8 +69,7 @@ const (
 	Actor
 	// BLS represents the address BLS protocol.
 	BLS
-	// Hierarchical represents a plain address with additional subnet
-	// context info
+	// Hierarchical represents a plain address with additional subnet context info.
 	Hierarchical
 
 	Unknown = Protocol(255)
@@ -181,7 +180,7 @@ func NewBLSAddress(pubkey []byte) (Address, error) {
 }
 
 // NewHAddress returns an address using the Hierarchical protocol.
-func NewHAddress(subnet SubnetID, addr Address) (Address, error) {
+func NewHCAddress(subnet SubnetID, addr Address) (Address, error) {
 	// Fix LENGTH container for hierarchical addresses
 	// for RUST compatibility
 	cont := make([]byte, HierarchicalLength)

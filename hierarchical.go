@@ -34,11 +34,9 @@ type SubnetID struct {
 	Actor  Address
 }
 
-// NewSubnetID generates the ID for a subnet from the networkName
-// of its parent.
+// NewSubnetID generates the ID for a subnet from the networkName of its parent.
 //
-// It takes the parent name and adds the source address of the subnet
-// actor that represents the subnet.
+// It takes the parent name and adds the source address of the subnet actor that represents the subnet.
 func NewSubnetID(parentName SubnetID, SubnetActorAddr Address) SubnetID {
 	return SubnetID{
 		Parent: parentName.String(),
@@ -158,7 +156,7 @@ func (id SubnetID) Up(curr SubnetID) SubnetID {
 	return sn
 }
 
-// String returns the id in string form
+// String returns the id in string form.
 func (id SubnetID) String() string {
 	if id == RootSubnet {
 		return ROOT_STR
@@ -178,7 +176,7 @@ func (a Address) Subnet() (SubnetID, error) {
 	return SubnetIDFromString(a.str[3 : snSize+3])
 }
 
-// RawAddr return the address without subnet context information
+// RawAddr return the address without subnet context information.
 func (a Address) RawAddr() (Address, error) {
 	if a.str[0] != Hierarchical {
 		return a, nil
