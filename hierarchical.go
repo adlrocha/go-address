@@ -1,9 +1,10 @@
 package address
 
 import (
-	"fmt"
 	"path"
 	"strings"
+
+	"github.com/multiformats/go-varint"
 )
 
 var id0, _ = NewIDAddress(0)
@@ -13,10 +14,6 @@ const (
 	SUBNET_SEPARATOR  = "/"
 	UNDEF_STR         = SUBNET_SEPARATOR
 	HC_ADDR_SEPARATOR = ":"
-	HC_ADDR_END       = byte(',')
-	HA_ROOT_LEN       = 5
-	HA_LEVEL_LEN      = 23
-	RAW_ADDR_LEN      = 66
 )
 
 // RootSubnet is the ID of the root network
@@ -70,7 +67,7 @@ func SubnetIDFromString(str string) (SubnetID, error) {
 
 // GetParent returns the ID of the parent network.
 func (id SubnetID) GetParent() (SubnetID, error) {
-	if id.Parent == ROOT_STR {
+	if id == RootSubnet {
 		return UndefSubnetID, nil
 	}
 	return SubnetIDFromString(id.Parent)
@@ -163,24 +160,10 @@ func (id SubnetID) Up(curr SubnetID) SubnetID {
 
 // String returns the id in string form
 func (id SubnetID) String() string {
-	return strings.Join([]string{id.Parent, id.Actor.String()}, SUBNET_SEPARATOR)
-}
-
-// Levels returns the number of levels in the current subnetID
-func (id SubnetID) Levels() int {
-	return len(strings.Split(id.String(), SUBNET_SEPARATOR)) - 1
-
-}
-
-// returns useful payload from hierarchical address
-func (a Address) parse_hierarchical() ([]string, error) {
-	str := string(a.Payload())
-	str = strings.Split(str, string(HC_ADDR_END))[0]
-	out := strings.Split(str, HC_ADDR_SEPARATOR)
-	if len(out) != 2 {
-		return nil, fmt.Errorf("error parsing hierarchical address")
+	if id == RootSubnet {
+		return ROOT_STR
 	}
-	return out, nil
+	return strings.Join([]string{id.Parent, id.Actor.String()}, SUBNET_SEPARATOR)
 }
 
 // Subnet returns subnet information for an address if any.
@@ -188,11 +171,11 @@ func (a Address) Subnet() (SubnetID, error) {
 	if a.str[0] != Hierarchical {
 		return UndefSubnetID, ErrNotHierarchical
 	}
-	pl, err := a.parse_hierarchical()
+	snSize, _, err := varint.FromUvarint([]byte(a.str[1:2]))
 	if err != nil {
 		return UndefSubnetID, err
 	}
-	return SubnetIDFromString(pl[0])
+	return SubnetIDFromString(a.str[3 : snSize+3])
 }
 
 // RawAddr return the address without subnet context information
@@ -200,24 +183,18 @@ func (a Address) RawAddr() (Address, error) {
 	if a.str[0] != Hierarchical {
 		return a, nil
 	}
-	pl, err := a.parse_hierarchical()
+	snSize, _, err := varint.FromUvarint([]byte(a.str[1:2]))
 	if err != nil {
 		return Undef, err
 	}
-	return decode_raw_str(pl[1])
+	return NewFromBytes([]byte(a.str[snSize+3:]))
 }
 
 func (a Address) PrettyPrint() string {
 	if a.str[0] != Hierarchical {
 		return a.String()
 	}
-	pl, err := a.parse_hierarchical()
-	if err != nil {
-		return UNDEF_STR
-	}
-	raw, err := decode_raw_str(pl[1])
-	if err != nil {
-		return UNDEF_STR
-	}
-	return string(pl[0] + HC_ADDR_SEPARATOR + raw.String())
+	sn, _ := a.Subnet()
+	raw, _ := a.RawAddr()
+	return string(sn.String() + HC_ADDR_SEPARATOR + raw.String())
 }

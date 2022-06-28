@@ -64,7 +64,7 @@ var allTestAddresses = []string{
 	"t3q22fijmmlckhl56rn5nkyamkph3mcfu5ed6dheq53c244hfmnq2i7efdma3cj5voxenwiummf2ajlsbxc65a",
 	"t3u5zgwa4ael3vuocgc5mfgygo4yuqocrntuuhcklf4xzg5tcaqwbyfabxetwtj4tsam3pbhnwghyhijr5mixa",
 	// Hierarchical addresses
-	"f4aixxe33poqxwmmbrgaydcotggn3hm3logyzgy33gozuguzbsovtxuy3bgzzw6zrsnizhkytxn5vtmy3kgr4hqytgpj5di6lvpbtgwz3pmjygs2dimqzhi2dmmfxg243ign3te4dunrsdez3rnnxdelaaac3fjs3r",
+	"f4bqys64tpn52c6zrqgeydamidvvmn62lofvhjd2ugzca6sof2j2ubwok6cj4xxbfzz4yuxfkgobpihhd2thlanmsh3w2ptld2gqkn2aoph33q",
 }
 
 func TestVectorsIDAddress(t *testing.T) {
@@ -476,7 +476,7 @@ func TestInvalidStringAddresses(t *testing.T) {
 		expetErr      error
 	}{
 		{"Q2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownNetwork},
-		{"t4gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownProtocol},
+		{"t6gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownProtocol},
 		{"t2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr24y", "", ErrInvalidChecksum},
 		{"t0banananananannnnnnnnn", "", ErrInvalidLength},
 		{"t0banananananannnnnnn", "", ErrInvalidPayload},
@@ -485,7 +485,7 @@ func TestInvalidStringAddresses(t *testing.T) {
 		{"t2", "", ErrInvalidLength},
 		{"t1234q", "", ErrInvalidLength},
 		{"Q2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownNetwork},
-		{"t4gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownProtocol},
+		{"t6gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownProtocol},
 		{"t2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr24y", "", ErrInvalidChecksum},
 		{strings.Repeat("a", MaxAddressStringLength+1), "", ErrInvalidLength},
 		{"t", "", ErrInvalidLength},

@@ -8,6 +8,7 @@ import (
 )
 
 func TestNaming(t *testing.T) {
+	address.CurrentNetwork = address.Mainnet
 	addr1, err := address.NewIDAddress(101)
 	require.NoError(t, err)
 	addr2, err := address.NewIDAddress(102)
@@ -40,7 +41,8 @@ func TestNaming(t *testing.T) {
 }
 
 func TestHAddress(t *testing.T) {
-	id, err := address.NewIDAddress(1000)
+	address.CurrentNetwork = address.Mainnet
+	id, _ := address.NewIDAddress(1000)
 	a, err := address.NewHAddress(address.RootSubnet, id)
 	require.NoError(t, err)
 	sn, err := a.Subnet()
@@ -56,11 +58,13 @@ func TestHAddress(t *testing.T) {
 }
 
 func TestRustInterop(t *testing.T) {
-	_, err := address.NewFromString("f4aixxe33poqxwmmbrgaydcotggn3hm3logyzgy33gozuguzbsovtxuy3bgzzw6zrsnizhkytxn5vtmy3kgr4hqytgpj5di6lvpbtgwz3pmjygs2dimqzhi2dmmfxg243ign3te4dunrsdez3rnnxdelaaac3fjs3r")
+	// This string address was generated from the Rust implementation.
+	_, err := address.NewFromString("f4bqys64tpn52c6zrqgeydamidvvmn62lofvhjd2ugzca6sof2j2ubwok6cj4xxbfzz4yuxfkgobpihhd2thlanmsh3w2ptld2gqkn2aoph33q")
 	require.NoError(t, err)
 }
 
 func TestSubnetOps(t *testing.T) {
+	address.CurrentNetwork = address.Mainnet
 	testParentAndBottomUp(t, "/root/f01", "/root/f01/f02", "/root/f01", 2, false)
 	testParentAndBottomUp(t, "/root/f03/f01", "/root/f01/f02", "/root", 1, true)
 	testParentAndBottomUp(t, "/root/f03/f01/f04", "/root/f03/f01/f05", "/root/f03/f01", 3, true)
@@ -95,6 +99,7 @@ func testParentAndBottomUp(t *testing.T, from, to, parent string, exl int, botto
 	require.NoError(t, err)
 	p, l := sfrom.CommonParent(sto)
 	sparent, err := address.SubnetIDFromString(parent)
+	require.NoError(t, err)
 	require.Equal(t, p, sparent)
 	require.Equal(t, exl, l)
 }

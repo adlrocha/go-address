@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"strconv"
-	"strings"
 
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/minio/blake2b-simd"
@@ -186,20 +185,20 @@ func NewHAddress(subnet SubnetID, addr Address) (Address, error) {
 	// Fix LENGTH container for hierarchical addresses
 	// for RUST compatibility
 	cont := make([]byte, HierarchicalLength)
-	var pl []byte
-	raw, err := encode_raw_str(CurrentNetwork, addr)
-	if err != nil {
-		return Undef, err
-	}
+	var (
+		snB   []byte
+		addrB []byte
+	)
 	if subnet == RootSubnet {
-		pl = []byte(fmt.Sprintf("%v%v%v", ROOT_STR, HC_ADDR_SEPARATOR, raw))
+		snB = []byte(ROOT_STR)
 	} else {
-		pl = []byte(fmt.Sprintf("%v%v%v", subnet, HC_ADDR_SEPARATOR, raw))
+		snB = []byte(subnet.String())
 	}
-	// prefix the levels of the subnet.
-	levels := varint.ToUvarint(uint64(subnet.Levels()))
+	addrB = addr.Bytes()
+	snSize := varint.ToUvarint(uint64(len(snB)))
+	addrSize := varint.ToUvarint(uint64(len(addrB)))
 	// add the end separator
-	copy(cont, append(levels, append(pl, HC_ADDR_END)...))
+	copy(cont, bytes.Join([][]byte{snSize, addrSize, snB, addrB}, []byte{}))
 	return newAddress(Hierarchical, cont)
 }
 
@@ -260,20 +259,16 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 			return Undef, ErrInvalidLength
 		}
 	case Hierarchical:
-		// if no end character
-		if len(strings.Split(string(payload), string(HC_ADDR_END))) != 2 {
-			return Undef, ErrInvalidPayload
+		snSize, _, err := varint.FromUvarint(payload[0:1])
+		if err != nil {
+			return Undef, err
 		}
-		// if no address separator
-		if len(strings.Split(string(payload), HC_ADDR_SEPARATOR)) != 2 {
-			return Undef, ErrInvalidPayload
-		}
-		levels, _, err := varint.FromUvarint(payload[0:1])
+		addrSize, _, err := varint.FromUvarint(payload[1:2])
 		if err != nil {
 			return Undef, err
 		}
 		// truncate payload address to the right size
-		payload = payload[:HA_ROOT_LEN+(levels-1)*HA_LEVEL_LEN+RAW_ADDR_LEN+2]
+		payload = payload[:snSize+addrSize+2]
 	default:
 		return Undef, ErrUnknownProtocol
 	}
@@ -318,104 +313,6 @@ func encode(network Network, addr Address) (string, error) {
 		return UndefAddressString, ErrUnknownProtocol
 	}
 	return strAddr, nil
-}
-
-// encode without checksum
-func encode_raw_str(network Network, addr Address) (string, error) {
-	if addr == Undef {
-		return UndefAddressString, nil
-	}
-	var ntwk string
-	switch network {
-	case Mainnet:
-		ntwk = MainnetPrefix
-	case Testnet:
-		ntwk = TestnetPrefix
-	default:
-		return UndefAddressString, ErrUnknownNetwork
-	}
-
-	var strAddr string
-	switch addr.Protocol() {
-	case SECP256K1, Actor, BLS, Hierarchical:
-		strAddr = ntwk + fmt.Sprintf("%d", addr.Protocol()) + AddressEncoding.WithPadding(-1).EncodeToString(addr.Payload())
-	case ID:
-		i, n, err := varint.FromUvarint(addr.Payload())
-		if err != nil {
-			return UndefAddressString, xerrors.Errorf("could not decode varint: %w", err)
-		}
-		if n != len(addr.Payload()) {
-			return UndefAddressString, xerrors.Errorf("payload contains additional bytes")
-		}
-		strAddr = fmt.Sprintf("%s%d%d", ntwk, addr.Protocol(), i)
-	default:
-		return UndefAddressString, ErrUnknownProtocol
-	}
-	return strAddr, nil
-}
-
-// decode without considering checksum
-func decode_raw_str(a string) (Address, error) {
-	if len(a) == 0 {
-		return Undef, nil
-	}
-	if a == UndefAddressString {
-		return Undef, nil
-	}
-	if len(a) > MaxAddressStringLength || len(a) < 3 {
-		return Undef, ErrInvalidLength
-	}
-
-	if string(a[0]) != MainnetPrefix && string(a[0]) != TestnetPrefix {
-		return Undef, ErrUnknownNetwork
-	}
-
-	var protocol Protocol
-	switch a[1] {
-	case '0':
-		protocol = ID
-	case '1':
-		protocol = SECP256K1
-	case '2':
-		protocol = Actor
-	case '3':
-		protocol = BLS
-	case '4':
-		protocol = Hierarchical
-	default:
-		return Undef, ErrUnknownProtocol
-	}
-
-	raw := a[2:]
-	if protocol == ID {
-		// 19 is length of math.MaxInt64 as a string
-		if len(raw) > 19 {
-			return Undef, ErrInvalidLength
-		}
-		id, err := strconv.ParseUint(raw, 10, 63)
-		if err != nil {
-			return Undef, ErrInvalidPayload
-		}
-		return newAddress(protocol, varint.ToUvarint(id))
-	}
-
-	payload, err := AddressEncoding.WithPadding(-1).DecodeString(raw)
-	if err != nil {
-		return Undef, err
-	}
-
-	reencodedRaw := AddressEncoding.WithPadding(-1).EncodeToString(payload)
-	if reencodedRaw != raw {
-		return Undef, ErrInvalidEncoding
-	}
-
-	if protocol == SECP256K1 || protocol == Actor {
-		if len(payload) != 20 {
-			return Undef, ErrInvalidPayload
-		}
-	}
-
-	return newAddress(protocol, payload)
 }
 
 func decode(a string) (Address, error) {
