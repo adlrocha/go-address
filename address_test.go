@@ -8,13 +8,13 @@ import (
 	"math"
 	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/multiformats/go-varint"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/filecoin-project/go-crypto"
 	cbg "github.com/whyrusleeping/cbor-gen"
 )
 
@@ -115,25 +115,6 @@ func TestVectorsIDAddress(t *testing.T) {
 			assert.Equal(addr, newAddr)
 		})
 	}
-
-}
-
-func TestSecp256k1Address(t *testing.T) {
-	assert := assert.New(t)
-
-	sk, err := crypto.GenerateKey()
-	assert.NoError(err)
-
-	addr, err := NewSecp256k1Address(crypto.PublicKey(sk))
-	assert.NoError(err)
-	assert.Equal(SECP256K1, addr.Protocol())
-
-	str, err := encode(Mainnet, addr)
-	assert.NoError(err)
-
-	maybe, err := decode(str)
-	assert.NoError(err)
-	assert.Equal(addr, maybe)
 
 }
 
@@ -479,20 +460,51 @@ func TestVectorBLSAddress(t *testing.T) {
 	}
 }
 
+// FIXME: Do not hardcode network and protocol values.
 func TestInvalidStringAddresses(t *testing.T) {
+	idPayloadMaxLength := MaxInt64StringLength
+	secpPayloadChecksumFixedLength := PayloadHashLength + ChecksumHashLength
+	actorPayloadChecksumFixedLength := secpPayloadChecksumFixedLength
+	blsPayloadChecksumFixedLength := BlsPublicKeyBytes + ChecksumHashLength
+
 	testCases := []struct {
-		input    string
-		expetErr error
+		input string
+		// Complement input that needs to be encoded in base 32. This allows
+		// to write the tests for non-ID addresses in plain format to make them
+		// easier to follow.
+		inputToEncode string
+		expetErr      error
 	}{
-		{"Q2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", ErrUnknownNetwork},
-		{"t5gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", ErrUnknownProtocol},
-		{"t2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr24y", ErrInvalidChecksum},
-		{"t0banananananannnnnnnnn", ErrInvalidLength},
-		{"t0banananananannnnnnn", ErrInvalidPayload},
-		{"t2gfvuyh7v2sx3patm1k23wdzmhyhtmqctasbr24y", base32.CorruptInputError(16)}, // '1' is not in base32 alphabet
-		{"t2gfvuyh7v2sx3paTm1k23wdzmhyhtmqctasbr24y", base32.CorruptInputError(14)}, // 'T' is not in base32 alphabet
-		{"t2", ErrInvalidLength},
-		{"t1234q", ErrInvalidLength},
+		{"Q2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownNetwork},
+		{"t4gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownProtocol},
+		{"t2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr24y", "", ErrInvalidChecksum},
+		{"t0banananananannnnnnnnn", "", ErrInvalidLength},
+		{"t0banananananannnnnnn", "", ErrInvalidPayload},
+		{"t2gfvuyh7v2sx3patm1k23wdzmhyhtmqctasbr24y", "", base32.CorruptInputError(16)}, // '1' is not in base32 alphabet
+		{"t2gfvuyh7v2sx3paTm1k23wdzmhyhtmqctasbr24y", "", base32.CorruptInputError(14)}, // 'T' is not in base32 alphabet
+		{"t2", "", ErrInvalidLength},
+		{"t1234q", "", ErrInvalidLength},
+		{"Q2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownNetwork},
+		{"t4gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr23y", "", ErrUnknownProtocol},
+		{"t2gfvuyh7v2sx3patm5k23wdzmhyhtmqctasbr24y", "", ErrInvalidChecksum},
+		{strings.Repeat("a", MaxAddressStringLength+1), "", ErrInvalidLength},
+		{"t", "", ErrInvalidLength},
+		{"t0", "", ErrInvalidLength},
+		// FIXME: The repetitions should be abstracted in the testing logic below
+		//  (similar to what was done with `inputToEncode`).
+		{"t0" + strings.Repeat("a", idPayloadMaxLength), "", ErrInvalidPayload},
+		{"t0" + strings.Repeat("a", idPayloadMaxLength+1), "", ErrInvalidLength},
+		{"t1", strings.Repeat("a", secpPayloadChecksumFixedLength), ErrInvalidChecksum},
+		{"t1", strings.Repeat("a", secpPayloadChecksumFixedLength+1), ErrInvalidLength},
+		{"t1", strings.Repeat("a", secpPayloadChecksumFixedLength-1), ErrInvalidLength},
+		{"t2", strings.Repeat("a", actorPayloadChecksumFixedLength), ErrInvalidChecksum},
+		{"t2", strings.Repeat("a", actorPayloadChecksumFixedLength+1), ErrInvalidLength},
+		{"t2", strings.Repeat("a", actorPayloadChecksumFixedLength-1), ErrInvalidLength},
+		{"t3", strings.Repeat("a", blsPayloadChecksumFixedLength), ErrInvalidChecksum},
+		{"t3", strings.Repeat("a", blsPayloadChecksumFixedLength+1), ErrInvalidLength},
+		{"t3", strings.Repeat("a", blsPayloadChecksumFixedLength-1), ErrInvalidLength},
+		{"t2gfvuyh7v2sx3patm1k23wdzmhyhtmqctasbr24y", "", base32.CorruptInputError(16)}, // '1' is not in base32 alphabet
+		{"t2gfvuyh7v2sx3paTm1k23wdzmhyhtmqctasbr24y", "", base32.CorruptInputError(14)}, // 'T' is not in base32 alphabet
 	}
 
 	for _, tc := range testCases {
@@ -500,7 +512,11 @@ func TestInvalidStringAddresses(t *testing.T) {
 		t.Run(fmt.Sprintf("testing string address: %s", tc.expetErr), func(t *testing.T) {
 			assert := assert.New(t)
 
-			_, err := NewFromString(tc.input)
+			encoded := ""
+			if tc.inputToEncode != "" {
+				encoded = AddressEncoding.WithPadding(-1).EncodeToString([]byte(tc.inputToEncode))
+			}
+			_, err := NewFromString(tc.input + encoded)
 			assert.Equal(tc.expetErr, err)
 		})
 	}
@@ -519,15 +535,15 @@ func TestInvalidByteAddresses(t *testing.T) {
 		{[]byte{0}, ErrInvalidLength},
 
 		// SECP256K1 Protocol
-		{append([]byte{1}, make([]byte, PayloadHashLength-1)...), ErrInvalidPayload},
-		{append([]byte{1}, make([]byte, PayloadHashLength+1)...), ErrInvalidPayload},
+		{append([]byte{1}, make([]byte, PayloadHashLength-1)...), ErrInvalidLength},
+		{append([]byte{1}, make([]byte, PayloadHashLength+1)...), ErrInvalidLength},
 		// Actor Protocol
-		{append([]byte{2}, make([]byte, PayloadHashLength-1)...), ErrInvalidPayload},
-		{append([]byte{2}, make([]byte, PayloadHashLength+1)...), ErrInvalidPayload},
+		{append([]byte{2}, make([]byte, PayloadHashLength-1)...), ErrInvalidLength},
+		{append([]byte{2}, make([]byte, PayloadHashLength+1)...), ErrInvalidLength},
 
 		// BLS Protocol
-		{append([]byte{3}, make([]byte, BlsPublicKeyBytes-1)...), ErrInvalidPayload},
-		{append([]byte{3}, make([]byte, BlsPrivateKeyBytes+1)...), ErrInvalidPayload},
+		{append([]byte{3}, make([]byte, BlsPublicKeyBytes-1)...), ErrInvalidLength},
+		{append([]byte{3}, make([]byte, BlsPrivateKeyBytes+1)...), ErrInvalidLength},
 	}
 
 	for _, tc := range testCases {
@@ -661,7 +677,7 @@ func TestIDMax(t *testing.T) {
 	// Check addr parsing.
 	id, err := IDFromAddress(a)
 	assert.NoError(t, err)
-	assert.EqualValues(t, math.MaxInt64, id)
+	assert.EqualValues(t, uint64(math.MaxInt64), id)
 
 	// Check string parsing.
 	_, err = NewFromString(fmt.Sprintf("t0%s", strconv.FormatUint(math.MaxInt64, 10)))
@@ -681,4 +697,15 @@ func TestIDMax(t *testing.T) {
 	var targetAddr Address
 	err = targetAddr.UnmarshalCBOR(&buf)
 	assert.True(t, errors.Is(err, ErrInvalidPayload), "%#v", err)
+}
+
+func TestTrailingBits(t *testing.T) {
+	goodStr := "f1xpbyy4tkdx5si2bgo37dubc2xwv6fum5tk57mia"
+	badStr := "f1xpbyy4tkdx5si2bgo37dubc2xwv6fum5tk57mid"
+
+	_, err := NewFromString(goodStr)
+	assert.NoError(t, err, "should be able to decode the good string")
+
+	_, err = NewFromString(badStr)
+	assert.True(t, errors.Is(err, ErrInvalidEncoding), "%#v", err)
 }

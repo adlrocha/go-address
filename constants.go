@@ -43,10 +43,15 @@ var (
 	ErrInvalidChecksum = errors.New("invalid address checksum")
 	// ErrNotHierarchical is returned when trying to access info only available in hierarchical addresses
 	ErrNotHierarchical = errors.New("not hierarchical address")
+	// ErrInvalidEncoding is returned when encountering a non-standard encoding of an address.
+	ErrInvalidEncoding = errors.New("invalid encoding")
 )
 
 // UndefAddressString is the string used to represent an empty address when encoded to a string.
 var UndefAddressString = "<empty>"
+
+// MaxInt64StringLength defines the maximum length of `int64` as a string.
+const MaxInt64StringLength = 19
 
 // PayloadHashLength defines the hash length taken over addresses using the Actor and SECP256K1 protocols.
 const PayloadHashLength = 20
