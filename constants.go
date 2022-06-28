@@ -61,8 +61,9 @@ const ChecksumHashLength = 4
 
 // MaxAddressStringLength is the max length of an address encoded as a string
 // it includes the network prefix, protocol, and bls publickey (see spec)
-const MaxAddressStringLength = HierarchicalLength + ChecksumHashLength
-const HierarchicalLength = 140
+// (142 bytes HA payload * 1.6 overhead base32 + 6 bytes checkpoint)
+const MaxAddressStringLength = 232
+const HierarchicalLength = 142
 
 // BlsPublicKeyBytes is the length of a BLS public key
 const BlsPublicKeyBytes = 48
