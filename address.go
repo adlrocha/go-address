@@ -189,7 +189,7 @@ func NewHCAddress(subnet SubnetID, addr Address) (Address, error) {
 		addrB []byte
 	)
 	if subnet == RootSubnet {
-		snB = []byte(ROOT_STR)
+		snB = []byte(RootStr)
 	} else {
 		snB = []byte(subnet.String())
 	}
@@ -258,6 +258,10 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 			return Undef, ErrInvalidLength
 		}
 	case Hierarchical:
+		// 5 bytes for /root + 2 for size + 1 for address
+		if len(payload) < 9 {
+			return Undef, ErrInvalidLength
+		}
 		snSize, _, err := varint.FromUvarint(payload[0:1])
 		if err != nil {
 			return Undef, err
