@@ -43,10 +43,15 @@ var (
 	ErrInvalidChecksum = errors.New("invalid address checksum")
 	// ErrNotHierarchical is returned when trying to access info only available in hierarchical addresses
 	ErrNotHierarchical = errors.New("not hierarchical address")
+	// ErrInvalidEncoding is returned when encountering a non-standard encoding of an address.
+	ErrInvalidEncoding = errors.New("invalid encoding")
 )
 
 // UndefAddressString is the string used to represent an empty address when encoded to a string.
 var UndefAddressString = "<empty>"
+
+// MaxInt64StringLength defines the maximum length of `int64` as a string.
+const MaxInt64StringLength = 19
 
 // PayloadHashLength defines the hash length taken over addresses using the Actor and SECP256K1 protocols.
 const PayloadHashLength = 20
@@ -55,13 +60,10 @@ const PayloadHashLength = 20
 const ChecksumHashLength = 4
 
 // MaxAddressStringLength is the max length of an address encoded as a string
-// it includes the network prefix, protocol, and bls publickey
-// NOTE: To accommodate consensus hierarchies of up to 6 levels in
-// hierarchical addresses we add an additional length buffer.
-// For the MVP we'll leave it like this, but in the future we may want to
-// support constant-length IDs for subnets, to allow us to set
-// this MaxLength accurately without worrying about overflows.
-const MaxAddressStringLength = 2 + 84 + (4*6 + 6)
+// it includes the network prefix, protocol, and bls publickey (see spec)
+// (142 bytes HA payload * 1.6 overhead base32 + 6 bytes checkpoint)
+const MaxAddressStringLength = 232
+const HierarchicalLength = 142
 
 // BlsPublicKeyBytes is the length of a BLS public key
 const BlsPublicKeyBytes = 48

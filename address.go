@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"strconv"
-	"strings"
 
 	cbor "github.com/ipfs/go-ipld-cbor"
 	"github.com/minio/blake2b-simd"
@@ -180,9 +179,26 @@ func NewBLSAddress(pubkey []byte) (Address, error) {
 	return newAddress(BLS, pubkey)
 }
 
-// NewHCAddress returns an address using within the Hierarchical Consensus protocol.
+// NewHAddress returns an address using the Hierarchical protocol.
 func NewHCAddress(subnet SubnetID, addr Address) (Address, error) {
-	return newAddress(Hierarchical, []byte(fmt.Sprintf("%v%v%v", subnet, HCAddressSeparator, addr)))
+	// Fix LENGTH container for hierarchical addresses
+	// for RUST compatibility
+	cont := make([]byte, HierarchicalLength)
+	var (
+		snB   []byte
+		addrB []byte
+	)
+	if subnet == RootSubnet {
+		snB = []byte(RootStr)
+	} else {
+		snB = []byte(subnet.String())
+	}
+	addrB = addr.Bytes()
+	snSize := varint.ToUvarint(uint64(len(snB)))
+	addrSize := varint.ToUvarint(uint64(len(addrB)))
+	// add the end separator
+	copy(cont, bytes.Join([][]byte{snSize, addrSize, snB, addrB}, []byte{}))
+	return newAddress(Hierarchical, cont)
 }
 
 // NewFromString returns the address represented by the string `addr`.
@@ -216,6 +232,9 @@ func addressHash(ingest []byte) []byte {
 	return hash(ingest, payloadHashConfig)
 }
 
+// FIXME: This needs to be unified with the logic of `decode` (which would
+//  handle the initial verification of the checksum separately), both are doing
+//  the exact same length checks.
 func newAddress(protocol Protocol, payload []byte) (Address, error) {
 	switch protocol {
 	case ID:
@@ -225,23 +244,34 @@ func newAddress(protocol Protocol, payload []byte) (Address, error) {
 		}
 		if n != len(payload) {
 			return Undef, xerrors.Errorf("different varint length (v:%d != p:%d): %w",
-				n, len(payload), ErrInvalidPayload)
+				n, len(payload), ErrInvalidLength)
 		}
 		if v > math.MaxInt64 {
 			return Undef, xerrors.Errorf("id addresses must be less than 2^63: %w", ErrInvalidPayload)
 		}
 	case SECP256K1, Actor:
 		if len(payload) != PayloadHashLength {
-			return Undef, ErrInvalidPayload
+			return Undef, ErrInvalidLength
 		}
 	case BLS:
 		if len(payload) != BlsPublicKeyBytes {
-			return Undef, ErrInvalidPayload
+			return Undef, ErrInvalidLength
 		}
 	case Hierarchical:
-		if len(strings.Split(string(payload), HCAddressSeparator)) != 2 {
-			return Undef, ErrInvalidPayload
+		// 5 bytes for /root + 2 for size + 1 for address
+		if len(payload) < 9 {
+			return Undef, ErrInvalidLength
 		}
+		snSize, _, err := varint.FromUvarint(payload[0:1])
+		if err != nil {
+			return Undef, err
+		}
+		addrSize, _, err := varint.FromUvarint(payload[1:2])
+		if err != nil {
+			return Undef, err
+		}
+		// truncate payload address to the right size
+		payload = payload[:snSize+addrSize+2]
 	default:
 		return Undef, ErrUnknownProtocol
 	}
@@ -321,8 +351,7 @@ func decode(a string) (Address, error) {
 
 	raw := a[2:]
 	if protocol == ID {
-		// 19 is length of math.MaxInt64 as a string
-		if len(raw) > 19 {
+		if len(raw) > MaxInt64StringLength {
 			return Undef, ErrInvalidLength
 		}
 		id, err := strconv.ParseUint(raw, 10, 63)
@@ -337,16 +366,27 @@ func decode(a string) (Address, error) {
 		return Undef, err
 	}
 
+	reencodedRaw := AddressEncoding.WithPadding(-1).EncodeToString(payloadcksm)
+	if reencodedRaw != raw {
+		return Undef, ErrInvalidEncoding
+	}
+
 	if len(payloadcksm) < ChecksumHashLength {
-		return Undef, ErrInvalidChecksum
+		return Undef, ErrInvalidLength
 	}
 
 	payload := payloadcksm[:len(payloadcksm)-ChecksumHashLength]
 	cksm := payloadcksm[len(payloadcksm)-ChecksumHashLength:]
 
 	if protocol == SECP256K1 || protocol == Actor {
-		if len(payload) != 20 {
-			return Undef, ErrInvalidPayload
+		if len(payload) != PayloadHashLength {
+			return Undef, ErrInvalidLength
+		}
+	}
+
+	if protocol == BLS {
+		if len(payload) != BlsPublicKeyBytes {
+			return Undef, ErrInvalidLength
 		}
 	}
 
