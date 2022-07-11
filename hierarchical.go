@@ -34,6 +34,10 @@ type SubnetID struct {
 	Actor  Address
 }
 
+func (id SubnetID) Key() string {
+	return id.String()
+}
+
 // NewSubnetID generates the ID for a subnet from the networkName of its parent.
 //
 // It takes the parent name and adds the source address of the subnet actor that represents the subnet.
